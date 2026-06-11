@@ -38,7 +38,7 @@ func TestDecodeBase64OrHex(t *testing.T) {
 	}
 
 	// Invalid input
-	_, err = decodeBase64OrHex("invalid_base64_string_that_cannot_be_decoded")
+	_, err = decodeBase64OrHex("invalid_base64_string_with_special_characters_!@#%^&*()")
 	if err == nil {
 		t.Errorf("expected error for invalid base64, got nil")
 	}
