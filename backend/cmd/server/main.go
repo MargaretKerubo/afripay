@@ -234,6 +234,19 @@ func main() {
 				"currency":     user.LocalCurrency,
 			})
 		})
+
+		walletGroup.GET("/transactions", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var transactions []db.Transaction
+			if err := database.Where("sender_id = ? OR receiver_id = ?", userID, userID).
+				Order("created_at desc").Find(&transactions).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve transactions"})
+				return
+			}
+
+			c.JSON(http.StatusOK, transactions)
+		})
 	}
 
 	// Start server
