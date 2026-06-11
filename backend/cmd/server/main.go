@@ -866,6 +866,130 @@ func main() {
 				"status":  escrow.Status,
 			})
 		})
+
+		walletGroup.POST("/escrow/resolve", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				EscrowID uint   `json:"escrow_id" binding:"required"`
+				Decision string `json:"decision" binding:"required"` // "RELEASE" or "REFUND"
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			var escrow db.EscrowTrade
+			if err := database.Where("id = ?", req.EscrowID).First(&escrow).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Escrow trade not found"})
+				return
+			}
+
+			if escrow.ArbitratorID != userID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Only the appointed Arbitrator can resolve a dispute"})
+				return
+			}
+
+			if escrow.Status != "DISPUTED" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Escrow trade must be in DISPUTED status to resolve"})
+				return
+			}
+
+			if req.Decision != "RELEASE" && req.Decision != "REFUND" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Decision must be either RELEASE or REFUND"})
+				return
+			}
+
+			paymentHashPrefix := fmt.Sprintf("escrow-%d", escrow.ID)
+
+			txErr := database.Transaction(func(dbTx *gorm.DB) error {
+				if req.Decision == "RELEASE" {
+					var sellerWallet db.Wallet
+					if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+						Where("user_id = ?", escrow.SellerID).First(&sellerWallet).Error; err != nil {
+						return err
+					}
+
+					sellerWallet.BalanceSats += escrow.AmountSats
+					if err := dbTx.Save(&sellerWallet).Error; err != nil {
+						return err
+					}
+
+					escrow.Status = "RELEASED"
+					escrow.ArbitratorApproval = true
+					if err := dbTx.Save(&escrow).Error; err != nil {
+						return err
+					}
+
+					// Update buyer's transaction record status to SETTLED
+					var transaction db.Transaction
+					if err := dbTx.Where("payment_hash = ?", paymentHashPrefix).First(&transaction).Error; err == nil {
+						transaction.Status = "SETTLED"
+						now := time.Now()
+						transaction.SettledAt = &now
+						dbTx.Save(&transaction)
+					}
+
+					// Fetch seller details for currency conversion log
+					var sellerUser db.User
+					if err := dbTx.Where("id = ?", escrow.SellerID).First(&sellerUser).Error; err == nil {
+						fiatVal, _ := rateService.ConvertSatsToFiat(escrow.AmountSats, sellerUser.LocalCurrency)
+						sellerID := sellerUser.ID
+						buyerID := escrow.BuyerID
+						now := time.Now()
+						sellerTx := db.Transaction{
+							SenderID:     &buyerID,
+							ReceiverID:   &sellerID,
+							AmountSats:   escrow.AmountSats,
+							FiatAmount:   fiatVal,
+							FiatCurrency: sellerUser.LocalCurrency,
+							Type:         "RECEIVE",
+							Status:       "SETTLED",
+							PaymentHash:  paymentHashPrefix,
+							SettledAt:    &now,
+						}
+						dbTx.Create(&sellerTx)
+					}
+				} else {
+					// REFUND
+					var buyerWallet db.Wallet
+					if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+						Where("user_id = ?", escrow.BuyerID).First(&buyerWallet).Error; err != nil {
+						return err
+					}
+
+					buyerWallet.BalanceSats += escrow.AmountSats
+					if err := dbTx.Save(&buyerWallet).Error; err != nil {
+						return err
+					}
+
+					escrow.Status = "REFUNDED"
+					escrow.ArbitratorApproval = true
+					if err := dbTx.Save(&escrow).Error; err != nil {
+						return err
+					}
+
+					// Update buyer's transaction record status to FAILED (since they got refunded)
+					var transaction db.Transaction
+					if err := dbTx.Where("payment_hash = ?", paymentHashPrefix).First(&transaction).Error; err == nil {
+						transaction.Status = "FAILED"
+						dbTx.Save(&transaction)
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to resolve escrow dispute: %v", txErr)})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":  fmt.Sprintf("Dispute resolved successfully: funds have been %sD", req.Decision),
+				"status":   escrow.Status,
+				"decision": req.Decision,
+			})
+		})
 	}
 
 	// Start server
