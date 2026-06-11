@@ -830,6 +830,42 @@ func main() {
 				"approval_count": approvalCount,
 			})
 		})
+
+		walletGroup.POST("/escrow/dispute", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				EscrowID uint `json:"escrow_id" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			var escrow db.EscrowTrade
+			if err := database.Where("id = ?", req.EscrowID).First(&escrow).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Escrow trade not found"})
+				return
+			}
+
+			if escrow.BuyerID != userID && escrow.SellerID != userID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Only the Buyer or Seller can raise a dispute"})
+				return
+			}
+
+			if escrow.Status != "LOCKED" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Escrow trade can only be disputed if it is currently locked"})
+				return
+			}
+
+			escrow.Status = "DISPUTED"
+			database.Save(&escrow)
+
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Escrow trade has been disputed. Awaiting arbitrator resolution.",
+				"status":  escrow.Status,
+			})
+		})
 	}
 
 	// Start server
