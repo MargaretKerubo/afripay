@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -307,6 +308,63 @@ func main() {
 				"payment_request": invoice,
 				"payment_hash":    paymentHash,
 				"amount_sats":     req.AmountSats,
+			})
+		})
+
+		walletGroup.POST("/deposit/simulate", func(c *gin.Context) {
+			var req struct {
+				PaymentHash string `json:"payment_hash" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			var transaction db.Transaction
+			if err := database.Where("payment_hash = ? AND status = ? AND type = ?", req.PaymentHash, "PENDING", "RECEIVE").
+				First(&transaction).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Pending deposit transaction not found"})
+				return
+			}
+
+			if transaction.ReceiverID == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Transaction has no receiver"})
+				return
+			}
+
+			// Perform GORM transaction to credit user wallet and update status
+			txErr := database.Transaction(func(tx *gorm.DB) error {
+				var wallet db.Wallet
+				// Lock wallet for update to prevent race conditions
+				if err := tx.Set("gorm:query_option", "FOR UPDATE").
+					Where("user_id = ?", *transaction.ReceiverID).First(&wallet).Error; err != nil {
+					return err
+				}
+
+				wallet.BalanceSats += transaction.AmountSats
+				if err := tx.Save(&wallet).Error; err != nil {
+					return err
+				}
+
+				now := time.Now()
+				transaction.Status = "SETTLED"
+				transaction.SettledAt = &now
+				if err := tx.Save(&transaction).Error; err != nil {
+					return err
+				}
+
+				return nil
+			})
+
+			if txErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to settle transaction: %v", txErr)})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":      "Transaction settled successfully (simulated)",
+				"payment_hash": transaction.PaymentHash,
+				"amount_sats":  transaction.AmountSats,
 			})
 		})
 	}
