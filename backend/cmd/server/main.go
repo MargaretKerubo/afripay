@@ -565,6 +565,33 @@ func main() {
 				"amount_sats": req.AmountSats,
 			})
 		})
+
+		walletGroup.POST("/swap-currency", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				Currency string `json:"currency" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			if req.Currency != "KES" && req.Currency != "UGX" && req.Currency != "TZS" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported fiat currency. Choose KES, UGX, or TZS."})
+				return
+			}
+
+			if err := database.Model(&db.User{}).Where("id = ?", userID).Update("local_currency", req.Currency).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update currency settings"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":  "Currency updated successfully",
+				"currency": req.Currency,
+			})
+		})
 	}
 
 	// Start server
