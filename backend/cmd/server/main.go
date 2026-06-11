@@ -468,6 +468,103 @@ func main() {
 				"amount_sats":  decoded.NumSatoshis,
 			})
 		})
+
+		walletGroup.POST("/transfer", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				Username   string `json:"username" binding:"required"`
+				AmountSats int64  `json:"amount_sats" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			if req.AmountSats <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Transfer amount must be greater than zero"})
+				return
+			}
+
+			// Find receiver user
+			var receiver db.User
+			if err := database.Where("username = ?", req.Username).First(&receiver).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Receiver user not found"})
+				return
+			}
+
+			if receiver.ID == userID {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "You cannot transfer money to yourself"})
+				return
+			}
+
+			// Find sender user
+			var sender db.User
+			if err := database.First(&sender, userID).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Sender user not found"})
+				return
+			}
+
+			// Execute DB transaction
+			txErr := database.Transaction(func(dbTx *gorm.DB) error {
+				var senderWallet db.Wallet
+				if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+					Where("user_id = ?", userID).First(&senderWallet).Error; err != nil {
+					return err
+				}
+
+				if senderWallet.BalanceSats < req.AmountSats {
+					return fmt.Errorf("insufficient balance: you have %d sats, but transfer requires %d sats", senderWallet.BalanceSats, req.AmountSats)
+				}
+
+				var receiverWallet db.Wallet
+				if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+					Where("user_id = ?", receiver.ID).First(&receiverWallet).Error; err != nil {
+					return err
+				}
+
+				// Deduct & Add
+				senderWallet.BalanceSats -= req.AmountSats
+				receiverWallet.BalanceSats += req.AmountSats
+
+				if err := dbTx.Save(&senderWallet).Error; err != nil {
+					return err
+				}
+				if err := dbTx.Save(&receiverWallet).Error; err != nil {
+					return err
+				}
+
+				// Create logged transaction
+				fiatVal, _ := rateService.ConvertSatsToFiat(req.AmountSats, sender.LocalCurrency)
+				now := time.Now()
+				senderID := sender.ID
+				receiverID := receiver.ID
+				
+				txRecord := db.Transaction{
+					SenderID:     &senderID,
+					ReceiverID:   &receiverID,
+					AmountSats:   req.AmountSats,
+					FiatAmount:   fiatVal,
+					FiatCurrency: sender.LocalCurrency,
+					Type:         "SEND",
+					Status:       "SETTLED",
+					SettledAt:    &now,
+				}
+
+				return dbTx.Create(&txRecord).Error
+			})
+
+			if txErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": txErr.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":     "Internal transfer completed successfully",
+				"receiver":    receiver.Username,
+				"amount_sats": req.AmountSats,
+			})
+		})
 	}
 
 	// Start server
