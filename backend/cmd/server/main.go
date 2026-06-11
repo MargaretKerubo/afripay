@@ -592,6 +592,106 @@ func main() {
 				"currency": req.Currency,
 			})
 		})
+
+		walletGroup.POST("/escrow/create", func(c *gin.Context) {
+			buyerID := c.MustGet("userID").(uint)
+
+			var req struct {
+				SellerUsername     string `json:"seller_username" binding:"required"`
+				ArbitratorUsername string `json:"arbitrator_username" binding:"required"`
+				AmountSats         int64  `json:"amount_sats" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			if req.AmountSats <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Escrow amount must be greater than zero"})
+				return
+			}
+
+			// Find seller and arbitrator
+			var seller db.User
+			if err := database.Where("username = ?", req.SellerUsername).First(&seller).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Seller user not found"})
+				return
+			}
+
+			var arbitrator db.User
+			if err := database.Where("username = ?", req.ArbitratorUsername).First(&arbitrator).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Arbitrator user not found"})
+				return
+			}
+
+			if seller.ID == buyerID || arbitrator.ID == buyerID || seller.ID == arbitrator.ID {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Buyer, Seller, and Arbitrator must be unique users"})
+				return
+			}
+
+			var buyer db.User
+			database.First(&buyer, buyerID)
+
+			// DB transaction to lock buyer funds
+			txErr := database.Transaction(func(dbTx *gorm.DB) error {
+				var buyerWallet db.Wallet
+				if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+					Where("user_id = ?", buyerID).First(&buyerWallet).Error; err != nil {
+					return err
+				}
+
+				if buyerWallet.BalanceSats < req.AmountSats {
+					return fmt.Errorf("insufficient balance to lock in escrow: you have %d sats, need %d sats", buyerWallet.BalanceSats, req.AmountSats)
+				}
+
+				buyerWallet.BalanceSats -= req.AmountSats
+				if err := dbTx.Save(&buyerWallet).Error; err != nil {
+					return err
+				}
+
+				// Create EscrowTrade record
+				escrow := db.EscrowTrade{
+					BuyerID:            buyerID,
+					SellerID:           seller.ID,
+					ArbitratorID:       arbitrator.ID,
+					AmountSats:         req.AmountSats,
+					Status:             "LOCKED",
+					BuyerApproval:      false,
+					SellerApproval:     false,
+					ArbitratorApproval: false,
+				}
+
+				if err := dbTx.Create(&escrow).Error; err != nil {
+					return err
+				}
+
+				// Create pending transaction log
+				fiatVal, _ := rateService.ConvertSatsToFiat(req.AmountSats, buyer.LocalCurrency)
+				txLog := db.Transaction{
+					SenderID:     &buyerID,
+					AmountSats:   req.AmountSats,
+					FiatAmount:   fiatVal,
+					FiatCurrency: buyer.LocalCurrency,
+					Type:         "ESCROW",
+					Status:       "PENDING", // PENDING means locked in escrow
+					PaymentHash:  fmt.Sprintf("escrow-%d", escrow.ID),
+				}
+
+				return dbTx.Create(&txLog).Error
+			})
+
+			if txErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": txErr.Error()})
+				return
+			}
+
+			c.JSON(http.StatusCreated, gin.H{
+				"message":     "Escrow trade protection initialized and funds locked",
+				"amount_sats": req.AmountSats,
+				"seller":      seller.Username,
+				"arbitrator":  arbitrator.Username,
+			})
+		})
 	}
 
 	// Start server
