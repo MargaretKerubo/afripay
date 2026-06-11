@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -246,6 +247,67 @@ func main() {
 			}
 
 			c.JSON(http.StatusOK, transactions)
+		})
+
+		walletGroup.POST("/deposit", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				AmountSats int64 `json:"amount_sats" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			if req.AmountSats <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Deposit amount must be greater than zero"})
+				return
+			}
+
+			var user db.User
+			if err := database.First(&user, userID).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+				return
+			}
+
+			// Generate invoice
+			memo := fmt.Sprintf("Deposit to afripay user %s", user.Username)
+			invoice, paymentHash, err := lnClient.CreateInvoice(req.AmountSats, memo)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate Lightning invoice: %v", err)})
+				return
+			}
+
+			// Convert amount to fiat
+			fiatVal, err := rateService.ConvertSatsToFiat(req.AmountSats, user.LocalCurrency)
+			if err != nil {
+				fiatVal = 0.0
+			}
+
+			// Create transaction
+			receiverID := user.ID
+			tx := db.Transaction{
+				ReceiverID:     &receiverID,
+				AmountSats:     req.AmountSats,
+				FiatAmount:     fiatVal,
+				FiatCurrency:   user.LocalCurrency,
+				Type:           "RECEIVE",
+				Status:         "PENDING",
+				PaymentRequest: invoice,
+				PaymentHash:    paymentHash,
+			}
+
+			if err := database.Create(&tx).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create transaction entry"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"payment_request": invoice,
+				"payment_hash":    paymentHash,
+				"amount_sats":     req.AmountSats,
+			})
 		})
 	}
 
