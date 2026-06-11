@@ -1,0 +1,37 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Next.js build and development artifacts
+.next/
+out/
+build/
+dist/
+
+# SQLite databases and journal files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# Go binaries and builds
+bin/
+/backend/main
+/backend/server
+
+# Local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# LND Credentials & Polar certificates
+.lnd/
+tls.cert
+admin.macaroon
+readonly.macaroon
+
+# OS-specific files
+.DS_Store
+Thumbs.db
