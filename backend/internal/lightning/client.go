@@ -287,7 +287,7 @@ func (c *Client) LookupInvoice(paymentHashHex string) (*LndInvoiceLookupResponse
 	return &lookupResp, nil
 }
 
-// decodeBase64OrHex decodes string from base64 (std or url) or accepts hex directly, returning hex representation
+// decodeBase64OrHex decodes string from base64 (std or url, padded or raw) or accepts hex directly, returning hex representation
 func decodeBase64OrHex(s string) (string, error) {
 	if len(s) == 64 {
 		if _, err := hex.DecodeString(s); err == nil {
@@ -296,9 +296,15 @@ func decodeBase64OrHex(s string) (string, error) {
 	}
 	data, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		data, err = base64.URLEncoding.DecodeString(s)
+		data, err = base64.RawStdEncoding.DecodeString(s)
 		if err != nil {
-			return "", err
+			data, err = base64.URLEncoding.DecodeString(s)
+			if err != nil {
+				data, err = base64.RawURLEncoding.DecodeString(s)
+				if err != nil {
+					return "", err
+				}
+			}
 		}
 	}
 	return hex.EncodeToString(data), nil
