@@ -53,6 +53,9 @@ func main() {
 	// Initialize Rate Service
 	rateService := rates.NewRateService()
 
+	// Start background invoice monitor
+	startInvoiceMonitor(database, lnClient)
+
 	// Initialize Gin engine
 	r := gin.Default()
 
@@ -374,4 +377,63 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Server failed to run: %v", err)
 	}
+}
+
+func startInvoiceMonitor(database *gorm.DB, lnClient *lightning.Client) {
+	// Don't monitor if simulated mode
+	if lnClient.IsSimulated {
+		log.Println("Invoice monitoring disabled (running in simulated mode)")
+		return
+	}
+
+	log.Println("Starting background Lightning invoice monitoring worker...")
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		for range ticker.C {
+			var pendingTx []db.Transaction
+			if err := database.Where("status = ? AND type = ? AND payment_hash != ? AND receiver_id IS NOT NULL", "PENDING", "RECEIVE", "").Find(&pendingTx).Error; err != nil {
+				continue
+			}
+
+			for _, tx := range pendingTx {
+				status, err := lnClient.LookupInvoice(tx.PaymentHash)
+				if err != nil {
+					log.Printf("Monitor: Failed to look up invoice %s: %v", tx.PaymentHash, err)
+					continue
+				}
+
+				if status.Settled || status.State == "SETTLED" {
+					log.Printf("Monitor: Detected settled invoice %s. Crediting wallet...", tx.PaymentHash)
+					
+					err := database.Transaction(func(dbTx *gorm.DB) error {
+						var wallet db.Wallet
+						if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+							Where("user_id = ?", *tx.ReceiverID).First(&wallet).Error; err != nil {
+							return err
+						}
+
+						wallet.BalanceSats += tx.AmountSats
+						if err := dbTx.Save(&wallet).Error; err != nil {
+							return err
+						}
+
+						now := time.Now()
+						tx.Status = "SETTLED"
+						tx.SettledAt = &now
+						if err := dbTx.Save(&tx).Error; err != nil {
+							return err
+						}
+
+						return nil
+					})
+
+					if err != nil {
+						log.Printf("Monitor: GORM transaction failed for tx %d: %v", tx.ID, err)
+					} else {
+						log.Printf("Monitor: Successfully settled deposit of %d sats for user ID %d", tx.AmountSats, *tx.ReceiverID)
+					}
+				}
+			}
+		}
+	}()
 }
