@@ -1,6 +1,7 @@
 package rates
 
 import (
+	"math"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestConvertSatsToFiat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if valKES != 1000.0 {
+	if math.Abs(valKES-1000.0) > 1e-9 {
 		t.Errorf("expected 1000.0 KES, got %f", valKES)
 	}
 
@@ -25,7 +26,7 @@ func TestConvertSatsToFiat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if valUGX != 30000.0 {
+	if math.Abs(valUGX-30000.0) > 1e-9 {
 		t.Errorf("expected 30000.0 UGX, got %f", valUGX)
 	}
 
