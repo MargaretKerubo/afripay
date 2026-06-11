@@ -370,6 +370,104 @@ func main() {
 				"amount_sats":  transaction.AmountSats,
 			})
 		})
+
+		walletGroup.POST("/withdraw", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var req struct {
+				PaymentRequest string `json:"payment_request" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+				return
+			}
+
+			// Decode invoice
+			decoded, err := lnClient.DecodeInvoice(req.PaymentRequest)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to parse Lightning invoice: %v", err)})
+				return
+			}
+
+			if decoded.NumSatoshis <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invoice must specify an amount greater than zero"})
+				return
+			}
+
+			// Fetch user info for currency
+			var user db.User
+			if err := database.First(&user, userID).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+				return
+			}
+
+			// Try to deduct user balance first
+			var wallet db.Wallet
+			deductErr := database.Transaction(func(dbTx *gorm.DB) error {
+				if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+					Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+					return err
+				}
+
+				if wallet.BalanceSats < decoded.NumSatoshis {
+					return fmt.Errorf("insufficient balance: you have %d sats, but invoice requires %d sats", wallet.BalanceSats, decoded.NumSatoshis)
+				}
+
+				wallet.BalanceSats -= decoded.NumSatoshis
+				return dbTx.Save(&wallet).Error
+			})
+
+			if deductErr != nil {
+				c.JSON(http.StatusPaymentRequired, gin.H{"error": deductErr.Error()})
+				return
+			}
+
+			// Now pay the invoice via LND
+			paymentHash, payErr := lnClient.PayInvoice(req.PaymentRequest)
+			if payErr != nil {
+				// Refund the user if LND payment failed
+				refundErr := database.Transaction(func(dbTx *gorm.DB) error {
+					var w db.Wallet
+					if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
+						Where("user_id = ?", userID).First(&w).Error; err != nil {
+						return err
+					}
+					w.BalanceSats += decoded.NumSatoshis
+					return dbTx.Save(&w).Error
+				})
+				if refundErr != nil {
+					log.Printf("CRITICAL: Failed to refund user ID %d after failed payment: %v", userID, refundErr)
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Lightning payment failed: %v", payErr)})
+				return
+			}
+
+			// Record the successful transaction in DB
+			fiatVal, _ := rateService.ConvertSatsToFiat(decoded.NumSatoshis, user.LocalCurrency)
+			senderID := user.ID
+			now := time.Now()
+			tx := db.Transaction{
+				SenderID:       &senderID,
+				AmountSats:     decoded.NumSatoshis,
+				FiatAmount:     fiatVal,
+				FiatCurrency:   user.LocalCurrency,
+				Type:           "SEND",
+				Status:         "SETTLED",
+				PaymentRequest: req.PaymentRequest,
+				PaymentHash:    paymentHash,
+				SettledAt:      &now,
+			}
+
+			if err := database.Create(&tx).Error; err != nil {
+				log.Printf("WARNING: Failed to log withdrawal transaction: %v", err)
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":      "Payment sent successfully",
+				"payment_hash": paymentHash,
+				"amount_sats":  decoded.NumSatoshis,
+			})
+		})
 	}
 
 	// Start server
