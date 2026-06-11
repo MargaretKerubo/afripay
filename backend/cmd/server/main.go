@@ -692,6 +692,20 @@ func main() {
 				"arbitrator":  arbitrator.Username,
 			})
 		})
+
+		walletGroup.GET("/escrow/list", func(c *gin.Context) {
+			userID := c.MustGet("userID").(uint)
+
+			var escrows []db.EscrowTrade
+			if err := database.Preload("Buyer").Preload("Seller").Preload("Arbitrator").
+				Where("buyer_id = ? OR seller_id = ? OR arbitrator_id = ?", userID, userID, userID).
+				Order("created_at desc").Find(&escrows).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve escrow trades"})
+				return
+			}
+
+			c.JSON(http.StatusOK, escrows)
+		})
 	}
 
 	// Start server
