@@ -3,6 +3,7 @@ package lightning
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -146,10 +147,12 @@ func (c *Client) CreateInvoice(amountSats int64, memo string) (string, string, e
 		return "", "", err
 	}
 
-	// LND r_hash is usually base64 encoded JSON bytes in REST response. We decode it to get hex string.
-	// Actually, LND REST exposes it as base64. Let's decode it.
-	// Wait, we can return the string directly or base64 decoded to hex. Let's make sure it handles both.
-	return invoiceResp.PaymentRequest, invoiceResp.RHash, nil
+	paymentHashHex, err := decodeBase64OrHex(invoiceResp.RHash)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decode payment hash: %w", err)
+	}
+
+	return invoiceResp.PaymentRequest, paymentHashHex, nil
 }
 
 // PayInvoice pays a Lightning invoice (bolt11)
@@ -195,7 +198,110 @@ func (c *Client) PayInvoice(paymentRequest string) (string, error) {
 		return "", fmt.Errorf("payment error: %s", payResp.PaymentError)
 	}
 
-	return payResp.PaymentHash, nil
+	paymentHashHex, err := decodeBase64OrHex(payResp.PaymentHash)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode payment hash: %w", err)
+	}
+
+	return paymentHashHex, nil
+}
+
+// LndDecodePayReqResponse represents the decode payment request response
+type LndDecodePayReqResponse struct {
+	NumSatoshis int64  `json:"num_satoshis,string"`
+	PaymentHash string `json:"payment_hash"`
+	Description string `json:"description"`
+}
+
+// DecodeInvoice decodes a BOLT11 invoice
+func (c *Client) DecodeInvoice(payReq string) (*LndDecodePayReqResponse, error) {
+	if c.IsSimulated {
+		return &LndDecodePayReqResponse{
+			NumSatoshis: 1000,
+			PaymentHash: hex.EncodeToString([]byte(fmt.Sprintf("sim-decoded-%d", time.Now().UnixNano()))),
+			Description: "Simulated Invoice Payment",
+		}, nil
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v1/payreq/%s", c.Host, payReq), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Grpc-Metadata-macaroon", c.Macaroon)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to decode invoice: %s (%s)", resp.Status, string(body))
+	}
+
+	var decodeResp LndDecodePayReqResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decodeResp); err != nil {
+		return nil, err
+	}
+
+	return &decodeResp, nil
+}
+
+// LndInvoiceLookupResponse represents LND invoice lookup response
+type LndInvoiceLookupResponse struct {
+	Settled bool   `json:"settled"`
+	State   string `json:"state"` // "OPEN", "SETTLED", "CANCELED", "ACCEPTED"
+}
+
+// LookupInvoice checks the status of a generated invoice
+func (c *Client) LookupInvoice(paymentHashHex string) (*LndInvoiceLookupResponse, error) {
+	if c.IsSimulated {
+		return &LndInvoiceLookupResponse{Settled: false, State: "OPEN"}, nil
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v1/invoice/%s", c.Host, paymentHashHex), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Grpc-Metadata-macaroon", c.Macaroon)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to lookup invoice: %s (%s)", resp.Status, string(body))
+	}
+
+	var lookupResp LndInvoiceLookupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&lookupResp); err != nil {
+		return nil, err
+	}
+
+	return &lookupResp, nil
+}
+
+// decodeBase64OrHex decodes string from base64 (std or url) or accepts hex directly, returning hex representation
+func decodeBase64OrHex(s string) (string, error) {
+	if len(s) == 64 {
+		if _, err := hex.DecodeString(s); err == nil {
+			return s, nil
+		}
+	}
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		data, err = base64.URLEncoding.DecodeString(s)
+		if err != nil {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(data), nil
 }
 
 // ReadFileToHex is a utility to read Polar credentials (like admin.macaroon) and convert to hex
