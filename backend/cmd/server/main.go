@@ -141,7 +141,7 @@ func main() {
 
 				wallet := db.Wallet{
 					UserID:      user.ID,
-					BalanceSats: 10000, // starting balance of 10,000 sats for demo
+					BalanceSats: 250000, // starting balance of 250,000 sats for demo
 				}
 				if err := tx.Create(&wallet).Error; err != nil {
 					return fmt.Errorf("failed to create wallet: %w", err)
@@ -684,6 +684,7 @@ func main() {
 				SellerUsername     string `json:"seller_username" binding:"required"`
 				ArbitratorUsername string `json:"arbitrator_username" binding:"required"`
 				AmountSats         int64  `json:"amount_sats" binding:"required"`
+				Description        string `json:"description"`
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
@@ -739,6 +740,7 @@ func main() {
 					SellerID:           seller.ID,
 					ArbitratorID:       arbitrator.ID,
 					AmountSats:         req.AmountSats,
+					Description:        req.Description,
 					Status:             "LOCKED",
 					BuyerApproval:      false,
 					SellerApproval:     false,

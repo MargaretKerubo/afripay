@@ -47,6 +47,7 @@ type EscrowTrade struct {
 	SellerID           uint      `gorm:"not null" json:"seller_id"`
 	ArbitratorID       uint      `gorm:"not null" json:"arbitrator_id"`
 	AmountSats         int64     `gorm:"not null" json:"amount_sats"`
+	Description        string    `gorm:"type:text" json:"description"`
 	Status             string    `gorm:"default:'LOCKED';not null" json:"status"` // "LOCKED", "RELEASED", "DISPUTED"
 	BuyerApproval      bool      `gorm:"default:false;not null" json:"buyer_approval"`
 	SellerApproval     bool      `gorm:"default:false;not null" json:"seller_approval"`

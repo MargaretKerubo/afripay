@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight, Bitcoin } from "lucide-react";
 import type { PublicStats } from "@/types";
 
@@ -52,19 +53,19 @@ export default function HeroSection({ stats }: Props) {
 
       {/* CTAs */}
       <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-        <a
-          href="#cta"
+        <Link
+          href="/register"
           className="group flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-gold-400 text-navy-950 font-semibold text-sm hover:bg-gold-500 transition-all duration-200 shadow-[0_0_30px_rgba(247,183,49,0.3)] hover:shadow-[0_0_40px_rgba(247,183,49,0.5)]"
         >
-          Join the Waitlist
+          Create Free Wallet
           <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-        </a>
-        <a
-          href="#how-it-works"
+        </Link>
+        <Link
+          href="/login"
           className="flex items-center justify-center gap-2 px-7 py-3.5 rounded-full border border-sand-400/20 text-sand-200 text-sm hover:border-gold-400/40 hover:text-gold-400 transition-all duration-200"
         >
-          See how it works
-        </a>
+          Sign In to Wallet
+        </Link>
       </div>
 
       {/* Live stat pills */}
@@ -72,11 +73,7 @@ export default function HeroSection({ stats }: Props) {
         <StatPill value="1%" label="Flat fee" accent="gold" />
         <StatPill value={`${stats.countries_served}`} label="Countries (roadmap)" accent="savanna" />
         <StatPill value="~5 min" label="Average settlement" accent="gold" />
-        <StatPill
-          value={`${stats.waitlist_count.toLocaleString()}+`}
-          label="People waiting"
-          accent="savanna"
-        />
+        <StatPill value="3" label="Active Corridors" accent="savanna" />
       </div>
     </section>
   );

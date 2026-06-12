@@ -21,7 +21,7 @@ export default function Footer() {
             ["#solution", "Solution"],
             ["#features", "Features"],
             ["#how-it-works", "How it works"],
-            ["#cta", "Join waitlist"],
+            ["#cta", "Get Started"],
           ].map(([href, label]) => (
             <a
               key={href}

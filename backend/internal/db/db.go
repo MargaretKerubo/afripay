@@ -58,9 +58,9 @@ func seedUsers() {
 		Currency string
 		Balance  int64
 	}{
-		{"alice", "password123", "KES", 100000}, // Kenyan trader, starting with 100,000 sats
-		{"bob", "password123", "UGX", 50000},    // Ugandan trader, starting with 50,000 sats
-		{"charlie", "password123", "KES", 0},    // Arbitrator
+		{"alice", "password123", "KES", 1000000}, // Kenyan trader, starting with 1,000,000 sats
+		{"bob", "password123", "UGX", 500000},    // Ugandan trader, starting with 500,000 sats
+		{"charlie", "password123", "KES", 100000},    // Arbitrator, starting with 100,000 sats
 	}
 
 	for _, u := range users {

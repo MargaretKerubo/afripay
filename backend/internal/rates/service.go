@@ -59,7 +59,7 @@ func NewRateService() *RateService {
 // fetchRates requests the latest price from CoinGecko
 func (s *RateService) fetchRates() {
 	log.Println("Updating exchange rates from CoinGecko...")
-	url := "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=kes,ugx,tzs"
+	url := "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=kes,ugx,tzs,usd"
 	
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -80,17 +80,32 @@ func (s *RateService) fetchRates() {
 		return
 	}
 
-	rates, ok := data.Bitcoin["kes"]
+	usdRate, ok := data.Bitcoin["usd"]
 	if !ok {
-		log.Println("CoinGecko response missing currency rates. Using fallback rates.")
+		log.Println("CoinGecko response missing USD. Using fallback rates.")
 		return
+	}
+
+	kesRate := data.Bitcoin["kes"]
+	if kesRate == 0 {
+		kesRate = usdRate * 130.0 // fallback
+	}
+
+	ugxRate := data.Bitcoin["ugx"]
+	if ugxRate == 0 {
+		ugxRate = usdRate * 3750.0 // fallback
+	}
+
+	tzsRate := data.Bitcoin["tzs"]
+	if tzsRate == 0 {
+		tzsRate = usdRate * 2600.0 // fallback
 	}
 
 	s.mu.Lock()
 	s.currentRates = CurrencyRates{
-		KES: rates,
-		UGX: data.Bitcoin["ugx"],
-		TZS: data.Bitcoin["tzs"],
+		KES: kesRate,
+		UGX: ugxRate,
+		TZS: tzsRate,
 	}
 	s.lastUpdated = time.Now()
 	s.mu.Unlock()

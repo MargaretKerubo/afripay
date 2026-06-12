@@ -38,6 +38,7 @@ interface EscrowTrade {
   seller_id: number;
   arbitrator_id: number;
   amount_sats: number;
+  description?: string;
   status: string;
   buyer_approval: boolean;
   seller_approval: boolean;
@@ -81,6 +82,7 @@ export default function DashboardPage() {
   const [escrowSeller, setEscrowSeller] = useState("");
   const [escrowArbitrator, setEscrowArbitrator] = useState("");
   const [escrowAmount, setEscrowAmount] = useState("");
+  const [escrowDescription, setEscrowDescription] = useState("");
 
   const token = typeof window !== "undefined" ? localStorage.getItem("afripay_token") : null;
 
@@ -132,8 +134,29 @@ export default function DashboardPage() {
     router.push("/");
   }
 
-  const currencyFormatter = (value: number, currency: string) =>
-    new Intl.NumberFormat("en-KE", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
+  const currencyFormatter = (value: number, currencyCode: string) => {
+    const code = currencyCode.toUpperCase();
+    let locale = "en-KE";
+    let fractionDigits = 2;
+    if (code === "UGX") {
+      locale = "en-UG";
+      fractionDigits = 0;
+    } else if (code === "TZS") {
+      locale = "en-TZ";
+      fractionDigits = 0;
+    } else if (code === "KES") {
+      locale = "en-KE";
+      fractionDigits = 2;
+    } else {
+      locale = "en-US";
+      fractionDigits = 2;
+    }
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: fractionDigits,
+    }).format(value);
+  };
 
   // Send Actions
   async function handlePayInvoice(e: React.FormEvent) {
@@ -325,6 +348,7 @@ export default function DashboardPage() {
           seller_username: escrowSeller,
           arbitrator_username: escrowArbitrator,
           amount_sats: parseInt(escrowAmount),
+          description: escrowDescription,
         }),
       });
       const data = await res.json();
@@ -335,6 +359,7 @@ export default function DashboardPage() {
         setEscrowSeller("");
         setEscrowArbitrator("");
         setEscrowAmount("");
+        setEscrowDescription("");
         setActiveModal(null);
         fetchDashboardData();
       }
@@ -816,9 +841,13 @@ export default function DashboardPage() {
                                 <span className="text-[10px] text-text-secondary uppercase font-mono block">Seller</span>
                                 <span className="text-xs text-text-primary">@{escrow.seller?.username}</span>
                               </div>
-                              <div className="col-span-2">
+                              <div>
                                 <span className="text-[10px] text-text-secondary uppercase font-mono block">Arbitrator</span>
                                 <span className="text-xs text-text-primary">@{escrow.arbitrator?.username}</span>
+                              </div>
+                              <div className="col-span-2">
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Description</span>
+                                <span className="text-xs text-text-primary italic">{escrow.description || "No description provided"}</span>
                               </div>
                             </div>
 
@@ -929,6 +958,17 @@ export default function DashboardPage() {
                           placeholder="e.g. 5000"
                           value={escrowAmount}
                           onChange={(e) => setEscrowAmount(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-text-secondary">Trade Description</label>
+                        <textarea
+                          id="escrow-description-input"
+                          className="form-input min-h-[60px]"
+                          placeholder="e.g. Buying 50kg maize from Bob"
+                          value={escrowDescription}
+                          onChange={(e) => setEscrowDescription(e.target.value)}
                           required
                         />
                       </div>
