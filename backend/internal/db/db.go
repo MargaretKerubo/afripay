@@ -27,6 +27,17 @@ func InitDB(dbPath string) *gorm.DB {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Ensure every user has a wallet (backfill for existing users)
+	err = DB.Exec(`
+		INSERT OR IGNORE INTO wallets (user_id, balance_sats, created_at, updated_at)
+		SELECT id, 0, datetime('now'), datetime('now')
+		FROM users
+		WHERE id NOT IN (SELECT user_id FROM wallets)
+	`).Error
+	if err != nil {
+		log.Printf("Warning: Failed to backfill wallets for existing users: %v", err)
+	}
+
 	seedUsers()
 
 	return DB
@@ -48,8 +59,8 @@ func seedUsers() {
 		Balance  int64
 	}{
 		{"alice", "password123", "KES", 100000}, // Kenyan trader, starting with 100,000 sats
-		{"bob", "password123", "UGX", 50000},   // Ugandan trader, starting with 50,000 sats
-		{"charlie", "password123", "KES", 0},     // Arbitrator
+		{"bob", "password123", "UGX", 50000},    // Ugandan trader, starting with 50,000 sats
+		{"charlie", "password123", "KES", 0},    // Arbitrator
 	}
 
 	for _, u := range users {
