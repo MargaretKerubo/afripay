@@ -11,6 +11,7 @@ import (
 	"afripay/internal/db"
 	"afripay/internal/lightning"
 	"afripay/internal/rates"
+	"afripay/internal/wallet"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -53,6 +54,9 @@ func main() {
 	// Initialize Rate Service
 	rateService := rates.NewRateService()
 
+	// Initialize Wallet Service
+	walletService := wallet.NewService(database, rateService)
+
 	// Start background invoice monitor
 	startInvoiceMonitor(database, lnClient)
 
@@ -83,12 +87,12 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "OK",
-			"database":    "CONNECTED",
-			"lightning":   lndStatus,
-			"node_alias":  lndInfo.Alias,
-			"synced":      lndInfo.SyncedToChain,
-			"simulated":   lnClient.IsSimulated,
+			"status":     "OK",
+			"database":   "CONNECTED",
+			"lightning":  lndStatus,
+			"node_alias": lndInfo.Alias,
+			"synced":     lndInfo.SyncedToChain,
+			"simulated":  lnClient.IsSimulated,
 		})
 	})
 
@@ -122,24 +126,29 @@ func main() {
 				return
 			}
 
-			// Create User
-			user := db.User{
-				Username:      req.Username,
-				PasswordHash:  string(hashed),
-				LocalCurrency: req.Currency,
-			}
-			if err := database.Create(&user).Error; err != nil {
-				c.JSON(http.StatusConflict, gin.H{"error": "Username is already taken"})
-				return
-			}
+			// Create User and Wallet atomically
+			var user db.User
+			txErr := database.Transaction(func(tx *gorm.DB) error {
+				user = db.User{
+					Username:      req.Username,
+					PasswordHash:  string(hashed),
+					LocalCurrency: req.Currency,
+				}
+				if err := tx.Create(&user).Error; err != nil {
+					return fmt.Errorf("failed to create user: %w", err)
+				}
 
-			// Create Wallet
-			wallet := db.Wallet{
-				UserID:      user.ID,
-				BalanceSats: 10000, // starting balance of 10,000 sats for demo
-			}
-			if err := database.Create(&wallet).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user wallet"})
+				wallet := db.Wallet{
+					UserID:      user.ID,
+					BalanceSats: 10000, // starting balance of 10,000 sats for demo
+				}
+				if err := tx.Create(&wallet).Error; err != nil {
+					return fmt.Errorf("failed to create wallet: %w", err)
+				}
+				return nil
+			})
+			if txErr != nil {
+				c.JSON(http.StatusConflict, gin.H{"error": "Username is already taken"})
 				return
 			}
 
@@ -218,39 +227,30 @@ func main() {
 		walletGroup.GET("/balance", func(c *gin.Context) {
 			userID := c.MustGet("userID").(uint)
 
-			var wallet db.Wallet
-			if err := database.Where("user_id = ?", userID).First(&wallet).Error; err != nil {
+			balance, err := walletService.GetBalance(userID)
+			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
 				return
 			}
 
-			var user db.User
-			database.First(&user, userID)
-
-			// Convert current balance to user's preferred currency
-			fiatBalance, err := rateService.ConvertSatsToFiat(wallet.BalanceSats, user.LocalCurrency)
-			if err != nil {
-				fiatBalance = 0.0
-			}
-
-			c.JSON(http.StatusOK, gin.H{
-				"balance_sats": wallet.BalanceSats,
-				"fiat_balance": fiatBalance,
-				"currency":     user.LocalCurrency,
-			})
+			c.JSON(http.StatusOK, balance)
 		})
 
 		walletGroup.GET("/transactions", func(c *gin.Context) {
 			userID := c.MustGet("userID").(uint)
 
-			var transactions []db.Transaction
-			if err := database.Where("sender_id = ? OR receiver_id = ?", userID, userID).
-				Order("created_at desc").Find(&transactions).Error; err != nil {
+			limit := 50
+			if l := c.Query("limit"); l != "" {
+				fmt.Sscanf(l, "%d", &limit)
+			}
+
+			txns, err := walletService.ListTransactions(userID, limit)
+			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve transactions"})
 				return
 			}
 
-			c.JSON(http.StatusOK, transactions)
+			c.JSON(http.StatusOK, txns)
 		})
 
 		walletGroup.POST("/deposit", func(c *gin.Context) {
@@ -539,7 +539,7 @@ func main() {
 				now := time.Now()
 				senderID := sender.ID
 				receiverID := receiver.ID
-				
+
 				txRecord := db.Transaction{
 					SenderID:     &senderID,
 					ReceiverID:   &receiverID,
@@ -730,13 +730,14 @@ func main() {
 			}
 
 			// Approve based on role
-			if userID == escrow.BuyerID {
+			switch userID {
+			case escrow.BuyerID:
 				escrow.BuyerApproval = true
-			} else if userID == escrow.SellerID {
+			case escrow.SellerID:
 				escrow.SellerApproval = true
-			} else if userID == escrow.ArbitratorID {
+			case escrow.ArbitratorID:
 				escrow.ArbitratorApproval = true
-			} else {
+			default:
 				c.JSON(http.StatusForbidden, gin.H{"error": "You are not a party to this escrow trade"})
 				return
 			}
@@ -817,8 +818,8 @@ func main() {
 				}
 
 				c.JSON(http.StatusOK, gin.H{
-					"message":       "Escrow released successfully. Funds transferred to Seller.",
-					"status":        "RELEASED",
+					"message":        "Escrow released successfully. Funds transferred to Seller.",
+					"status":         "RELEASED",
 					"approval_count": approvalCount,
 				})
 				return
@@ -1024,7 +1025,7 @@ func startInvoiceMonitor(database *gorm.DB, lnClient *lightning.Client) {
 
 				if status.Settled || status.State == "SETTLED" {
 					log.Printf("Monitor: Detected settled invoice %s. Crediting wallet...", tx.PaymentHash)
-					
+
 					err := database.Transaction(func(dbTx *gorm.DB) error {
 						var wallet db.Wallet
 						if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
