@@ -56,16 +56,29 @@ func NewClient(host, macaroon, certPath string) *Client {
 	}
 	httpClient := &http.Client{
 		Transport: tr,
-		Timeout:   10 * time.Second,
+		Timeout:   2 * time.Second,
 	}
 
-	return &Client{
+	client := &Client{
 		Host:       host,
 		Macaroon:   macaroon,
 		CertPath:   certPath,
 		httpClient: httpClient,
 		IsSimulated: false,
 	}
+
+	// Verify LND connectivity on startup and fallback to simulated mode if unreachable
+	_, err := client.GetInfo()
+	if err != nil {
+		log.Printf("WARNING: Failed to connect to LND node at %s: %v. Falling back to SIMULATED mode.", host, err)
+		client.IsSimulated = true
+	} else {
+		log.Printf("SUCCESS: Connected to LND node at %s", host)
+		// Restore full timeout for normal operations
+		httpClient.Timeout = 10 * time.Second
+	}
+
+	return client
 }
 
 // GetInfo retrieves node metadata
