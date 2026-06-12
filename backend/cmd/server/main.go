@@ -730,13 +730,14 @@ func main() {
 			}
 
 			// Approve based on role
-			if userID == escrow.BuyerID {
+			switch userID {
+			case escrow.BuyerID:
 				escrow.BuyerApproval = true
-			} else if userID == escrow.SellerID {
+			case escrow.SellerID:
 				escrow.SellerApproval = true
-			} else if userID == escrow.ArbitratorID {
+			case escrow.ArbitratorID:
 				escrow.ArbitratorApproval = true
-			} else {
+			default:
 				c.JSON(http.StatusForbidden, gin.H{"error": "You are not a party to this escrow trade"})
 				return
 			}
