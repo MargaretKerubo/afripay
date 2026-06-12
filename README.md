@@ -134,4 +134,64 @@ Fiat values are displayed using live conversion rates while Bitcoin remains the 
 │  Regtest │
 └──────────┘
 
-   
+   🛠️ Tech Stack
+Layer
+Technology
+Frontend
+Next.js (React)
+Backend
+Go (Golang)
+Database
+SQLite
+Lightning
+LND (Lightning Network Daemon)
+Bitcoin
+Bitcoin Core (Regtest)
+Exchange Rates
+CoinGecko API
+🚀 Getting Started
+Prerequisites
+Go 1.21+
+Node.js 18+
+Docker (for LND + Bitcoin Regtest)
+
+Installation
+
+# Clone the repository
+git clone https://github.com/your-org/afripay.git
+cd afripay
+
+# Backend setup
+cd backend
+cp .env.example .env
+go mod tidy
+go run main.go
+
+# Frontend setup
+cd ../frontend
+cp .env.example .env.local
+npm install
+npm run dev
+
+See Environment Variables for required .env configuration.
+
+📁 Project Structure
+
+afripay/
+├── backend/           # Go API server
+│   ├── handlers/      # HTTP route handlers
+│   ├── models/        # Database models
+│   ├── services/      # Business logic
+│   └── main.go
+├── frontend/          # Next.js app
+│   ├── components/
+│   ├── pages/
+│   └── styles/
+├── docs/              # Documentation
+└── README.md
+
+🏆 Hackathon
+
+Built for afripay lightning— demonstrating Bitcoin Lightning Network as a financial inclusion layer for African cross-border trade.
+
+MIT License — see LICENSE for details.
