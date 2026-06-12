@@ -42,17 +42,18 @@ type Transaction struct {
 
 // EscrowTrade represents a 2-of-3 multisig trade protection mechanism
 type EscrowTrade struct {
-	ID                 uint      `gorm:"primaryKey" json:"id"`
-	BuyerID            uint      `gorm:"not null" json:"buyer_id"`
-	SellerID           uint      `gorm:"not null" json:"seller_id"`
-	ArbitratorID       uint      `gorm:"not null" json:"arbitrator_id"`
-	AmountSats         int64     `gorm:"not null" json:"amount_sats"`
-	Status             string    `gorm:"default:'LOCKED';not null" json:"status"` // "LOCKED", "RELEASED", "DISPUTED"
-	BuyerApproval      bool      `gorm:"default:false;not null" json:"buyer_approval"`
-	SellerApproval     bool      `gorm:"default:false;not null" json:"seller_approval"`
-	ArbitratorApproval bool      `gorm:"default:false;not null" json:"arbitrator_approval"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+    ID                 uint      `gorm:"primaryKey" json:"id"`
+    BuyerID            uint      `gorm:"not null" json:"buyer_id"`
+    SellerID           uint      `gorm:"not null" json:"seller_id"`
+    ArbitratorID       uint      `gorm:"not null" json:"arbitrator_id"`
+    AmountSats         int64     `gorm:"not null" json:"amount_sats"`
+    FiatCurrency       string    `gorm:"not null" json:"fiat_currency"` // KES, UGX, TZS
+    Status             string    `gorm:"default:'PENDING';not null" json:"status"` // "PENDING", "LOCKED", "RELEASED", "REFUNDED", "DISPUTED"
+    BuyerApproval      bool      `gorm:"default:false;not null" json:"buyer_approval"`
+    SellerApproval     bool      `gorm:"default:false;not null" json:"seller_approval"`
+    ArbitratorApproval bool      `gorm:"default:false;not null" json:"arbitrator_approval"`
+    CreatedAt          time.Time `json:"created_at"`
+    UpdatedAt          time.Time `json:"updated_at"`
 
 	// Relationships
 	Buyer      User `gorm:"foreignKey:BuyerID" json:"buyer"`
