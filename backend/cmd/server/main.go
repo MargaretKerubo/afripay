@@ -633,6 +633,7 @@ func main() {
 			database.First(&buyer, buyerID)
 
 			// DB transaction to lock buyer funds
+			var escrow db.EscrowTrade
 			txErr := database.Transaction(func(dbTx *gorm.DB) error {
 				var buyerWallet db.Wallet
 				if err := dbTx.Set("gorm:query_option", "FOR UPDATE").
@@ -649,19 +650,27 @@ func main() {
 					return err
 				}
 
-				// Create EscrowTrade record
-				escrow := db.EscrowTrade{
+				// Create EscrowTrade record — starts PENDING, then moves to LOCKED
+				// once funds are confirmed deducted from the buyer's wallet.
+				escrow = db.EscrowTrade{
 					BuyerID:            buyerID,
 					SellerID:           seller.ID,
 					ArbitratorID:       arbitrator.ID,
 					AmountSats:         req.AmountSats,
-					Status:             "LOCKED",
+					FiatCurrency:       buyer.LocalCurrency,
+					Status:             "PENDING",
 					BuyerApproval:      false,
 					SellerApproval:     false,
 					ArbitratorApproval: false,
 				}
 
 				if err := dbTx.Create(&escrow).Error; err != nil {
+					return err
+				}
+
+				// Funds have been deducted above — trade is now active/locked
+				escrow.Status = "LOCKED"
+				if err := dbTx.Save(&escrow).Error; err != nil {
 					return err
 				}
 
@@ -687,7 +696,10 @@ func main() {
 
 			c.JSON(http.StatusCreated, gin.H{
 				"message":     "Escrow trade protection initialized and funds locked",
+				"escrow_id":   escrow.ID,
 				"amount_sats": req.AmountSats,
+				"currency":    escrow.FiatCurrency,
+				"status":      escrow.Status,
 				"seller":      seller.Username,
 				"arbitrator":  arbitrator.Username,
 			})
