@@ -22,7 +22,7 @@ func InitDB(dbPath string) *gorm.DB {
 	log.Printf("Database initialized at %s. Running migrations...", dbPath)
 
 	// Migrate the schema
-	err = DB.AutoMigrate(&User{}, &Wallet{}, &Transaction{}, &EscrowTrade{})
+	err = DB.AutoMigrate(&User{}, &Wallet{}, &Transaction{}, &EscrowTrade{}, &WaitlistEntry{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}

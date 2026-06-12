@@ -1,12 +1,11 @@
 const corridors = [
-  { from: "🇰🇪 Kenya", to: "🇺🇬 Uganda", tag: "Live beta" },
-  { from: "🇳🇬 Nigeria", to: "🇬🇭 Ghana", tag: "Live beta" },
-  { from: "🇿🇦 South Africa", to: "🇿🇼 Zimbabwe", tag: "Live beta" },
-  { from: "🇪🇹 Ethiopia", to: "🇰🇪 Kenya", tag: "Q3 2025" },
-  { from: "🇸🇳 Senegal", to: "🇨🇮 Côte d'Ivoire", tag: "Q3 2025" },
-  { from: "🇹🇿 Tanzania", to: "🇷🇼 Rwanda", tag: "Q4 2025" },
-  { from: "🇨🇲 Cameroon", to: "🇨🇬 Congo", tag: "Q4 2025" },
-  { from: "🇲🇦 Morocco", to: "🇩🇿 Algeria", tag: "2026" },
+  { from: "🇰🇪 Kenya (KES)", to: "🇺🇬 Uganda (UGX)", tag: "Live beta" },
+  { from: "🇺🇬 Uganda (UGX)", to: "🇹🇿 Tanzania (TZS)", tag: "Live beta" },
+  { from: "🇹🇿 Tanzania (TZS)", to: "🇰🇪 Kenya (KES)", tag: "Live beta" },
+  { from: "🇳🇬 Nigeria", to: "🇬🇭 Ghana", tag: "Planned Q1 2027" },
+  { from: "🇿🇦 South Africa", to: "🇿🇼 Zimbabwe", tag: "Planned Q2 2027" },
+  { from: "🇪🇹 Ethiopia", to: "🇰🇪 Kenya", tag: "Planned Q3 2027" },
+  { from: "🇸🇳 Senegal", to: "🇨🇮 Côte d'Ivoire", tag: "Planned Q4 2027" },
 ];
 
 export default function CorridorsSection() {

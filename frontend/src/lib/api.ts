@@ -29,10 +29,18 @@ export async function joinWaitlist(data: {
  * Uses Next.js fetch caching – revalidates every 60 s.
  */
 export async function getPublicStats() {
-  const res = await fetch(`${BASE_URL}/stats`, {
-    next: { revalidate: 60 },
-  });
-
-  if (!res.ok) return null;
-  return res.json();
+  if (typeof window === "undefined" && !BASE_URL.startsWith("http")) {
+    return null;
+  }
+  try {
+    const res = await fetch(`${BASE_URL}/stats`, {
+      next: { revalidate: 60 },
+    });
+  
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    return null;
+  }
 }
+

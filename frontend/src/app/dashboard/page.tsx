@@ -551,7 +551,7 @@ export default function DashboardPage() {
             <button
               key={action.id}
               id={action.id}
-              className="glass-card p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-orange-500 transition-all duration-200"
+              className="glass-card p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-accent-primary transition-all duration-200"
               style={{ background: "rgba(255,255,255,0.02)" }}
               onClick={() => {
                 setError("");
@@ -578,7 +578,7 @@ export default function DashboardPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="glass-card w-full max-w-lg p-6 relative" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               <button
-                className="absolute top-4 right-4 text-xl font-bold hover:text-orange-500"
+                className="absolute top-4 right-4 text-xl font-bold hover:text-accent-primary"
                 onClick={() => {
                   setActiveModal(null);
                   setGeneratedInvoice("");
@@ -592,15 +592,15 @@ export default function DashboardPage() {
               {activeModal === "send" && (
                 <div>
                   <h3 className="text-xl font-bold mb-4 gradient-text">Send Money</h3>
-                  <div className="flex gap-4 border-b border-gray-700 mb-4 pb-2">
+                  <div className="flex gap-4 border-b border-border mb-4 pb-2">
                     <button
-                      className={`text-sm font-bold pb-1 ${sendTab === "invoice" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-400"}`}
+                      className={`text-sm font-bold pb-1 ${sendTab === "invoice" ? "text-accent-primary border-b-2 border-accent-primary" : "text-gray-400"}`}
                       onClick={() => setSendTab("invoice")}
                     >
                       Pay Lightning Invoice
                     </button>
                     <button
-                      className={`text-sm font-bold pb-1 ${sendTab === "transfer" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-400"}`}
+                      className={`text-sm font-bold pb-1 ${sendTab === "transfer" ? "text-accent-primary border-b-2 border-accent-primary" : "text-gray-400"}`}
                       onClick={() => setSendTab("transfer")}
                     >
                       Internal Transfer
@@ -698,7 +698,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col items-center gap-2 p-4 bg-white/5 rounded-lg border border-gray-700">
-                        <div className="w-32 h-32 flex items-center justify-center bg-white rounded-lg border-4 border-orange-500 font-bold text-black text-xs text-center p-2">
+                        <div className="w-32 h-32 flex items-center justify-center bg-white rounded-lg border-4 border-accent-primary font-bold text-black text-xs text-center p-2">
                           [ Afripay Lightning QR ]
                         </div>
                         <p className="text-xs text-gray-400 font-mono text-center break-all select-all">
@@ -764,15 +764,15 @@ export default function DashboardPage() {
               {activeModal === "escrow" && (
                 <div>
                   <h3 className="text-xl font-bold mb-4 gradient-text">Escrow Trade Protection</h3>
-                  <div className="flex gap-4 border-b border-gray-700 mb-4 pb-2">
+                  <div className="flex gap-4 border-b border-border mb-4 pb-2">
                     <button
-                      className={`text-sm font-bold pb-1 ${escrowTab === "list" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-400"}`}
+                      className={`text-sm font-bold pb-1 ${escrowTab === "list" ? "text-accent-primary border-b-2 border-accent-primary" : "text-gray-400"}`}
                       onClick={() => setEscrowTab("list")}
                     >
                       Active Escrows
                     </button>
                     <button
-                      className={`text-sm font-bold pb-1 ${escrowTab === "create" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-400"}`}
+                      className={`text-sm font-bold pb-1 ${escrowTab === "create" ? "text-accent-primary border-b-2 border-accent-primary" : "text-gray-400"}`}
                       onClick={() => setEscrowTab("create")}
                     >
                       Create Escrow
@@ -785,38 +785,64 @@ export default function DashboardPage() {
                         <p className="text-sm text-center text-gray-400 py-6">No escrow trades active.</p>
                       ) : (
                         escrows.map((escrow) => (
-                          <div key={escrow.id} className="p-4 rounded-lg bg-white/5 border border-gray-700 flex flex-col gap-2">
+                          <div key={escrow.id} className="p-4 rounded-lg bg-surface border border-border flex flex-col gap-3">
                             <div className="flex justify-between items-start">
-                              <span className="text-xs font-bold text-orange-500">Escrow #{escrow.id}</span>
+                              <span className="text-xs font-bold text-accent-primary">Escrow #{escrow.id}</span>
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                escrow.status === "RELEASED" ? "bg-green-500/20 text-green-400" :
-                                escrow.status === "DISPUTED" ? "bg-red-500/20 text-red-400" :
-                                escrow.status === "REFUNDED" ? "bg-blue-500/20 text-blue-400" :
-                                "bg-yellow-500/20 text-yellow-400"
+                                escrow.status === "RELEASED" ? "bg-green-500/15 text-green-400 border border-green-500/20" :
+                                escrow.status === "DISPUTED" ? "bg-red-500/15 text-red-400 border border-red-500/20" :
+                                escrow.status === "REFUNDED" ? "bg-blue-500/15 text-blue-400 border border-blue-500/20" :
+                                "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20"
                               }`}>
                                 {escrow.status}
                               </span>
                             </div>
-                            <div className="text-xs flex flex-col gap-1 text-gray-300">
-                              <p><strong>Role:</strong> {getEscrowRoleLabel(escrow)}</p>
-                              <p><strong>Buyer:</strong> @{escrow.buyer?.username}</p>
-                              <p><strong>Seller:</strong> @{escrow.seller?.username}</p>
-                              <p><strong>Arbitrator:</strong> @{escrow.arbitrator?.username}</p>
-                              <p><strong>Amount:</strong> {escrow.amount_sats?.toLocaleString()} sats</p>
+                            
+                            {/* Grid presentation details */}
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 bg-black/20 p-3 rounded-xl border border-border/10">
+                              <div>
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Your Role</span>
+                                <span className="text-xs font-semibold text-accent-secondary">{getEscrowRoleLabel(escrow)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Amount</span>
+                                <span className="text-xs font-semibold text-text-primary">{escrow.amount_sats?.toLocaleString()} sats</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Buyer</span>
+                                <span className="text-xs text-text-primary">@{escrow.buyer?.username}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Seller</span>
+                                <span className="text-xs text-text-primary">@{escrow.seller?.username}</span>
+                              </div>
+                              <div className="col-span-2">
+                                <span className="text-[10px] text-text-secondary uppercase font-mono block">Arbitrator</span>
+                                <span className="text-xs text-text-primary">@{escrow.arbitrator?.username}</span>
+                              </div>
                             </div>
 
                             {/* Escrow approvals display */}
-                            <div className="text-[10px] flex gap-2 text-gray-400 mt-1">
-                              <span>Buyer: {escrow.buyer_approval ? "✅ Approved" : "❌ Pending"}</span>
-                              <span>Seller: {escrow.seller_approval ? "✅ Approved" : "❌ Pending"}</span>
-                              <span>Arbitrator: {escrow.arbitrator_approval ? "✅ Approved" : "❌ Pending"}</span>
+                            <div className="flex gap-2 justify-between items-center bg-black/10 p-2 rounded-lg text-[10px] text-text-secondary border border-border/5">
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${escrow.buyer_approval ? "bg-accent-green" : "bg-text-muted"}`} />
+                                <span>Buyer</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${escrow.seller_approval ? "bg-accent-green" : "bg-text-muted"}`} />
+                                <span>Seller</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${escrow.arbitrator_approval ? "bg-accent-green" : "bg-text-muted"}`} />
+                                <span>Arbitrator</span>
+                              </div>
                             </div>
 
                             {/* Actions on Escrow */}
                             {escrow.status === "LOCKED" && (
-                              <div className="flex gap-2 mt-2">
+                              <div className="flex gap-2 mt-1">
                                 <button
-                                  className="btn-primary text-xs py-1 px-3 flex-1"
+                                  className="btn-primary text-xs py-1.5 px-3 flex-1 font-semibold"
                                   onClick={() => handleReleaseEscrow(escrow.id)}
                                   disabled={actionLoading}
                                 >
@@ -824,7 +850,7 @@ export default function DashboardPage() {
                                 </button>
                                 {(user?.id === escrow.buyer_id || user?.id === escrow.seller_id) && (
                                   <button
-                                    className="btn-secondary text-xs py-1 px-3 text-red-400 hover:bg-red-500/10"
+                                    className="btn-secondary text-xs py-1.5 px-3 text-accent-red hover:bg-accent-red/10 border-accent-red/20 font-semibold"
                                     onClick={() => handleDisputeEscrow(escrow.id)}
                                     disabled={actionLoading}
                                   >
@@ -835,27 +861,27 @@ export default function DashboardPage() {
                             )}
 
                             {escrow.status === "DISPUTED" && (
-                              <div className="flex gap-2 mt-2">
+                              <div className="flex gap-2 mt-1">
                                 {user?.id === escrow.arbitrator_id ? (
                                   <>
                                     <button
-                                      className="btn-primary text-xs py-1 px-3 flex-1"
+                                      className="btn-primary text-xs py-1.5 px-3 flex-1 font-semibold"
                                       onClick={() => handleResolveEscrow(escrow.id, "RELEASE")}
                                       disabled={actionLoading}
                                     >
-                                      Resolve: Pay Seller
+                                      Pay Seller
                                     </button>
                                     <button
-                                      className="btn-secondary text-xs py-1 px-3 flex-1 text-red-400 hover:bg-red-500/10"
+                                      className="btn-secondary text-xs py-1.5 px-3 flex-1 text-accent-red hover:bg-accent-red/10 border-accent-red/20 font-semibold"
                                       onClick={() => handleResolveEscrow(escrow.id, "REFUND")}
                                       disabled={actionLoading}
                                     >
-                                      Resolve: Refund Buyer
+                                      Refund Buyer
                                     </button>
                                   </>
                                 ) : (
                                   <button
-                                    className="btn-primary text-xs py-1 px-3 flex-1"
+                                    className="btn-primary text-xs py-1.5 px-3 flex-1 font-semibold"
                                     onClick={() => handleReleaseEscrow(escrow.id)}
                                     disabled={actionLoading}
                                   >
@@ -871,7 +897,7 @@ export default function DashboardPage() {
                   ) : (
                     <form onSubmit={handleCreateEscrow} className="flex flex-col gap-4">
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs font-semibold text-gray-400">Seller Username</label>
+                        <label className="text-xs font-semibold text-text-secondary">Seller Username</label>
                         <input
                           id="escrow-seller-input"
                           type="text"
@@ -883,7 +909,7 @@ export default function DashboardPage() {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs font-semibold text-gray-400">Arbitrator Username</label>
+                        <label className="text-xs font-semibold text-text-secondary">Arbitrator Username</label>
                         <input
                           id="escrow-arbitrator-input"
                           type="text"
@@ -895,7 +921,7 @@ export default function DashboardPage() {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs font-semibold text-gray-400">Amount (sats)</label>
+                        <label className="text-xs font-semibold text-text-secondary">Amount (sats)</label>
                         <input
                           id="escrow-amount-input"
                           type="number"
@@ -909,7 +935,7 @@ export default function DashboardPage() {
                       <button
                         id="escrow-submit"
                         type="submit"
-                        className="btn-primary w-full"
+                        className="btn-primary w-full mt-2"
                         disabled={actionLoading}
                       >
                         {actionLoading ? "Locking funds..." : "Initialize Escrow and Lock Funds"}

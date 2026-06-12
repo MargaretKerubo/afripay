@@ -59,3 +59,13 @@ type EscrowTrade struct {
 	Seller     User `gorm:"foreignKey:SellerID" json:"seller"`
 	Arbitrator User `gorm:"foreignKey:ArbitratorID" json:"arbitrator"`
 }
+
+// WaitlistEntry represents a sign-up for the waitlist
+type WaitlistEntry struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"not null" json:"name"`
+	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
+	Country   string    `json:"country"`
+	CreatedAt time.Time `json:"created_at"`
+}
+

@@ -30,12 +30,12 @@ export default function SolutionSection() {
           />
           <FlowArrow label="KES → BTC" />
           <FlowMid />
-          <FlowArrow label="BTC → NGN" />
+          <FlowArrow label="BTC → UGX" />
           <FlowStep
             icon={Wallet}
             label="Recipient"
-            sublabel="Lagos, NG"
-            flag="🇳🇬"
+            sublabel="Kampala, UG"
+            flag="🇺🇬"
             color="savanna"
           />
         </div>
