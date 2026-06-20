@@ -1,0 +1,18 @@
+{
+  "currency_symbol": "KSh",
+  "monthly_salary": 250000,
+  "needs_budget": 125000,
+  "wants_budget": 75000,
+  "savings_budget": 50000,
+  "allocated_rent": 40000,
+  "allocated_food": 35000,
+  "allocated_transport": 10000,
+  "allocated_utilities": 10000,
+  "history": [
+    {
+      "timestamp": "2026-06-20 14:34:41",
+      "category": "Transport/Commute",
+      "amount": 15000
+    }
+  ]
+}
